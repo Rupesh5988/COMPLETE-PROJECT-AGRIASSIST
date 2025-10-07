@@ -20,26 +20,26 @@ creat virtual evn ->
 3.     deactive
 
 
-run crop code ->
+run crop/fertilizer/weather code ->
 1.      pip install -r req.txt
 2.      python train_model.py
 3.      python app.py
 
 
 run railfal-prediction ->
-*   cd Farmer-Advisory-System\Rainfall-Prediction\ml_backend   
-1.  pip install -r requirements.txt
-2.  python predict_api.py
+1   cd Farmer-Advisory-System\Rainfall-Prediction\ml_backend   
+2.  pip install -r requirements.txt
+3.  python predict_api.py
 
 new terminal
-3.  cd Farmer-Advisory-System\Rainfall-Prediction\web_application
-4.  npm i
-5.  node server.js
+4.  cd Farmer-Advisory-System\Rainfall-Prediction\web_application
+5.  npm i
+6.  node server.js
 
 new terminal 
-6.   cd Farmer-Advisory-System\Rainfall-Prediction\web_application\client
-7. npm install
-
+7.   cd Farmer-Advisory-System\Rainfall-Prediction\web_application\client
+8.   npm install
+9.   npm run dev
 
 
 
