@@ -61,6 +61,12 @@ export function AppSidebar() {
           </SidebarMenuButton>
         </SidebarMenuItem>
         <SidebarMenuItem>
+          <SidebarMenuButton tooltip="Weather" onClick={() => window.open("http://localhost:5173/", "_blank")}>
+            <CloudSun />
+            Weather Advisory  
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
           <SidebarMenuButton tooltip="Crop Prediction" onClick={() => window.open("http://127.0.0.1:5000", "_blank")}>
             <Leaf />
             Crop Prediction
@@ -69,19 +75,19 @@ export function AppSidebar() {
         <SidebarMenuItem>
           <SidebarMenuButton tooltip="Fertilizer" onClick={() => window.open("http://127.0.0.1:5000", "_blank")}>
             <FlaskConical />
-            Fertilizer Prediction
+            Fertilizer Advisory
           </SidebarMenuButton>
         </SidebarMenuItem>
          <SidebarMenuItem>
           <SidebarMenuButton tooltip="Irrigation">
             <Droplets />
-            Irrigation Advice
+            Irrigation Advisory
           </SidebarMenuButton>
         </SidebarMenuItem>
          <SidebarMenuItem>
           <SidebarMenuButton tooltip="Alerts">
             <Bell />
-            Alerts
+            Alert System
           </SidebarMenuButton>
         </SidebarMenuItem>
         

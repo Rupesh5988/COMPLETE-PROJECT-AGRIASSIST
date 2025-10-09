@@ -50,6 +50,7 @@ export function FertilizerAdvisory() {
   return (
     <Card>
       <Form {...form}>
+
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -58,6 +59,7 @@ export function FertilizerAdvisory() {
             </CardTitle>
             <CardDescription>Get AI-powered fertilizer recommendations for your crops.</CardDescription>
           </CardHeader>
+
           <CardContent className="space-y-4">
             <FormField
               control={form.control}
@@ -109,6 +111,7 @@ export function FertilizerAdvisory() {
               )}
             />
           </CardContent>
+
           <CardFooter className="flex-col items-stretch gap-4">
             <Button type="submit" disabled={isPending}>
               {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
@@ -122,6 +125,7 @@ export function FertilizerAdvisory() {
               </div>
             )}
           </CardFooter>
+          
         </form>
       </Form>
     </Card>
