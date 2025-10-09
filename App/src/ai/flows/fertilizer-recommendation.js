@@ -15,7 +15,7 @@ export async function getEnvironmentalData(lat, lon) {
 }
 
 // This function calls your working `/predict` endpoint
-export async function getFertilizerPrediction(finalPayload) {
+export async function fertilizerRecommendation(finalPayload) {
   try {
     const url = "http://127.0.0.1:5002/predict";
     const response = await axios.post(url, finalPayload);

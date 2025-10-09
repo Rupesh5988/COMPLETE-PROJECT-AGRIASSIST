@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { getEnvironmentalData, getFertilizerPrediction } from "@/ai/flows/fertilizer-recommendation";
+import { getEnvironmentalData, fertilizerRecommendation } from "@/ai/flows/fertilizer-recommendation";
 import axios from "axios";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
