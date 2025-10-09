@@ -40,7 +40,7 @@ export function AlertSystem() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Bell className="w-6 h-6 text-primary" />
+          <Bell className="w-10 h-6 text-primary" />
           Alert System
         </CardTitle>
         <CardDescription>
