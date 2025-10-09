@@ -1,61 +1,29 @@
-// src/ai/flows/fertilizer-recommendation.js
-'use server';
+// Path: src/ai/flows/fertilizer-recommendation.js
 
-/**
- * @fileOverview Provides fertilizer recommendations tailored to the user's specific crop and soil data.
- *
- * - fertilizerRecommendation - A function that takes crop and soil data and returns fertilizer recommendations.
- * - FertilizerRecommendationInput - The input type for the fertilizerRecommendation function.
- * - FertilizerRecommendationOutput - The return type for the fertilizerRecommendation function.
- */
+import axios from "axios";
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-
-const FertilizerRecommendationInputSchema = z.object({
-  cropType: z.string().describe('The type of crop being grown.'),
-  soilData: z.string().describe('Data about the soil composition and condition.'),
-  region: z.string().describe('The region where the farming is taking place'),
-});
-
-
-
-const FertilizerRecommendationOutputSchema = z.object({
-  recommendations: z.string().describe('Fertilizer recommendations tailored to the crop and soil data.'),
-});
-
-
-
-export async function fertilizerRecommendation(
-  input
-) {
-  return fertilizerRecommendationFlow(input);
+// This function calls your working `/get_environmental_data` endpoint
+export async function getEnvironmentalData(lat, lon) {
+  try {
+    const url = "http://127.0.0.1:5002/get_environmental_data";
+    const response = await axios.post(url, { lat, lon });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching environmental data:", error);
+    throw new Error("Failed to fetch environmental data.");
+  }
 }
 
-const prompt = ai.definePrompt({
-  name: 'fertilizerRecommendationPrompt',
-  input: {schema: FertilizerRecommendationInputSchema},
-  output: {schema: FertilizerRecommendationOutputSchema},
-  prompt: `You are an expert in agriculture, providing fertilizer recommendations based on crop type, soil data, and region.
-
-  Provide tailored recommendations to optimize crop yields and minimize fertilizer waste.
-
-  Crop Type: {{{cropType}}}
-  Soil Data: {{{soilData}}}
-  Region: {{{region}}}
-
-  Provide clear and actionable recommendations.
-  `,
-});
-
-const fertilizerRecommendationFlow = ai.defineFlow(
-  {
-    name: 'fertilizerRecommendationFlow',
-    inputSchema: FertilizerRecommendationInputSchema,
-    outputSchema: FertilizerRecommendationOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output;
+// This function calls your working `/predict` endpoint
+export async function getFertilizerPrediction(finalPayload) {
+  try {
+    const url = "http://127.0.0.1:5002/predict";
+    const response = await axios.post(url, finalPayload);
+    return {
+      recommendations: response.data.prediction,
+    };
+  } catch (error) {
+    console.error("Error getting prediction:", error);
+    throw new Error("Failed to get fertilizer prediction.");
   }
-);
+}
