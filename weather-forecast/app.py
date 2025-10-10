@@ -66,4 +66,4 @@ def get_weather():
         return jsonify({'error': f'Unexpected API response format. Missing data: {e}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, use_reloader=False, port=5000)
+    app.run(debug=True, use_reloader=False, port=5003)
