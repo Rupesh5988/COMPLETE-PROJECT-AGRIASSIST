@@ -6,6 +6,7 @@ import { FertilizerAdvisory } from "@/components/dashboard/fertilizer-advisory";
 import { IrrigationAdvisory } from "@/components/dashboard/irrigation-advisory";
 import { AlertSystem } from "@/components/dashboard/alert-system";
 import { ExpertTalk } from "@/components/dashboard/expert-talk";
+import { Footer } from "@/components/dashboard/footer";
 
 export default function Home() {
   return ( 
@@ -33,6 +34,9 @@ export default function Home() {
           </div>
            <div className="lg:col-span-3">
              <ExpertTalk />
+          </div>
+          <div className="lg:col-span-3">
+             <Footer />
           </div>
 
         </div>
