@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { getEnvironmentalData, fertilizerRecommendation } from "@/ai/flows/fertilizer-recommendation";
+// We only need axios now!
 import axios from "axios";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -22,6 +22,9 @@ const districtCoordinates = {
     "Satara": { "lat": 17.6800, "lon": 73.9900 },
     "Solapur": { "lat": 17.6599, "lon": 75.9004 }
 }
+
+// Define the base URL for your Flask API
+const API_URL = "http://127.0.0.1:5002";
 
 const formSchema = z.object({
   cropType: z.string().min(1, "Crop type is required."),
@@ -49,24 +52,29 @@ export function FertilizerAdvisory() {
 
   const selectedDistrict = form.watch("district");
 
+  // Fetch Dropdown Options on Load
   useEffect(() => {
     const fetchFormOptions = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:5002/get_form_options");
+        const response = await axios.get(`${API_URL}/get_form_options`);
         setFormOptions(response.data);
-        if (response.data.districts.length > 0) {
+        // Set defaults only if they exist
+        if (response.data.districts?.length > 0) {
           form.setValue("district", response.data.districts[0]);
         }
-        if (response.data.crops.length > 0) {
+        if (response.data.crops?.length > 0) {
           form.setValue("cropType", response.data.crops[0]);
         }
       } catch (err) {
+        console.error("Fetch options error:", err);
         setError("Failed to load form options from server. Please ensure the backend is running.");
       }
     };
     fetchFormOptions();
+    // We add form.setValue to the dependency array as it's used inside
   }, [form.setValue]);
 
+  // Fetch Environmental Data when District changes
   useEffect(() => {
     if (!selectedDistrict || !districtCoordinates[selectedDistrict]) return;
 
@@ -76,7 +84,11 @@ export function FertilizerAdvisory() {
       setResult(null);
       const { lat, lon } = districtCoordinates[selectedDistrict];
       try {
-        const data = await getEnvironmentalData(lat, lon);
+        // *** FIX 1: Use axios.post to call your /get_environmental_data endpoint ***
+        const response = await axios.post(`${API_URL}/get_environmental_data`, { lat, lon });
+        const data = response.data;
+
+        // Set all values from the API response
         form.setValue("nitrogen", data.N);
         form.setValue("phosphorus", data.P);
         form.setValue("potassium", data.K);
@@ -85,6 +97,7 @@ export function FertilizerAdvisory() {
         form.setValue("rainfall", data.rainfall);
         form.setValue("soil_color", data.soil_color);
       } catch (e) {
+        console.error("Get env data error:", e);
         setError("Could not fetch environmental data for the selected district.");
       } finally {
         setIsFetching(false);
@@ -93,15 +106,26 @@ export function FertilizerAdvisory() {
     fetchAndSetData();
   }, [selectedDistrict, form.setValue]);
 
+  // Handle Form Submission
   function onSubmit(values) {
     startTransition(async () => {
       setError(null);
       setResult(null);
       try {
-        const finalPayload = { ...values, crop: values.cropType };
-        const recommendation = await getFertilizerPrediction(finalPayload);
-        setResult(recommendation);
+        // *** FIX 2: Create the payload your Flask /predict route expects ***
+        const finalPayload = {
+          ...values,
+          crop: values.cropType, // Rename cropType to crop for the backend
+        };
+        
+        // *** FIX 3: Use axios.post to call your /predict endpoint ***
+        const response = await axios.post(`${API_URL}/predict`, finalPayload);
+        
+        // Assuming your Flask returns: {'prediction': 'Name of Fertilizer'}
+        setResult(response.data.prediction); 
       } catch (e) {
+        // *** FIX 4: Log the real error to the console for debugging ***
+        console.error("Prediction error:", e);
         setError("Failed to get prediction. Please check the form data.");
       }
     });
@@ -110,7 +134,6 @@ export function FertilizerAdvisory() {
   return (
     <Card>
       <Form {...form}>
-
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -168,10 +191,12 @@ export function FertilizerAdvisory() {
               Get Recommendation
             </Button>
             {error && <p className="text-sm text-destructive text-center">{error}</p>}
+            
+            {/* Display the result, which is now a string */}
             {result && (
               <div className="space-y-2 rounded-lg border bg-secondary/50 p-4">
                 <h3 className="font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" />AI Recommendation</h3>
-                <p className="text-sm text-muted-foreground">{result.recommendations}</p>
+                <p className="text-2xl font-bold text-center text-primary">{result}</p>
               </div>
             )}
           </CardFooter>
