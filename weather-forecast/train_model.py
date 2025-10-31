@@ -19,8 +19,6 @@ print("-----------------\n")
 
 
 # --- Step 2: Prepare the data for training ---
-# We select the features that will help predict the outcome.
-# Let's use max temperature, humidity, and rainfall.
 features = ['max_temp_c', 'humidity_percent', 'rainfall_mm']
 target = 'irrigation_needed'
 

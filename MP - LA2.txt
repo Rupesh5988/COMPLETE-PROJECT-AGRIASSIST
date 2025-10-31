@@ -1,0 +1,38 @@
+MP - LA2
+
+Weather-forecast (irrigation system)
+1. Use decision tree for this (train - test data = 80:20)
+2. USE sklearn library (mainly use for 
+
+Fertilizer-suggestion
+1. Use Random Forest model (train - test data = 80:20)
+1. USE HYPERPARAMETER TECHNIQUE.
+2. Train model on 80% dataset
+3. test model on 20% dataset and check accuracy
+4. Save new model and encoders
+5. on app.py =>
+6. Load model and encoders
+
+crop-suggestion
+1. Use one hot encoding and label encoding
+2. Use Random Forest model (train - test data = 80:20)	
+3.Train model on 80% dataset
+4. test model on 20% dataset and check accuracy
+5. Save new model and encoders
+6.
+
+
+API Used - OPEN METEO
+DATA SOURCES - 
+
+MODEL ACCURACY (WE ARE WORKING ON IMPROVING ACCURACY)
+MODEL ADVISORY SYSTEM USIGN AI AGENT INSTEAD OF IF-ELSE LOGIC
+
+ TECHNOLOGIES FOR - AI ADVISORY SYSTEM
+1. LLM (Large Language Model)
+2. ML
+3 XAI (Explainable AI)
+4. DSS (Decision Support System)
+
+AI agent - ability to act autonomously
+make decision on predefined goals and adapt new information in real time
