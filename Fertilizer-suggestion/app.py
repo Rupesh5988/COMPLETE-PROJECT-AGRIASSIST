@@ -56,7 +56,7 @@ def get_environmental_data():
         lat, lon = data['lat'], data['lon']
 
         soil_url = f"https://rest.isric.org/soilgrids/v2.0/properties/query?lon={lon}&lat={lat}&property=wrb_class_name&depth=0-5cm&value=strings"
-        soil_response = requests.get(soil_url, timeout=15).json()
+        soil_response = requests.get(soil_url, timeout=30).json()
         soil_class_name = soil_response['properties']['layers'][0]['depths'][0]['values']['strings'][0]
 
         soil_type_mapped = "Clayey"
@@ -73,7 +73,7 @@ def get_environmental_data():
         today = datetime.utcnow()
         last_year = today - timedelta(days=365)
         historical_weather_url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={last_year.strftime('%Y-%m-%d')}&end_date={today.strftime('%Y-%m-%d')}&daily=rain_sum"
-        historical_response = requests.get(historical_weather_url, timeout=15).json()
+        historical_response = requests.get(historical_weather_url, timeout=30).json()
         precipitation_data = historical_response['daily']['rain_sum']
         defaults['rainfall'] = sum(p for p in precipitation_data if p is not None)
 
