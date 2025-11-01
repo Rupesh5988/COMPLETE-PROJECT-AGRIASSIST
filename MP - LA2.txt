@@ -36,3 +36,7 @@ MODEL ADVISORY SYSTEM USIGN AI AGENT INSTEAD OF IF-ELSE LOGIC
 
 AI agent - ability to act autonomously
 make decision on predefined goals and adapt new information in real time
+
+STEPS:
+1. Build the conversational interface (frontend: next.js, backend: flask)
+2. 
