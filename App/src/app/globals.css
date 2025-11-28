@@ -2,88 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer base {
   :root {
-    --background: 60 56% 91%;
-    --foreground: 224 71% 4%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
-    --primary: 120 25% 45%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 60 48% 85%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 60 48% 85%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 40 100% 67%;
-    --accent-foreground: 40 100% 15%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 60 25% 80%;
-    --input: 60 25% 80%;
-    --ring: 120 25% 45%;
-    --chart-1: 120 25% 45%;
-    --chart-2: 40 100% 67%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-    --sidebar-background: 120 25% 25%;
-    --sidebar-foreground: 120 25% 95%;
-    --sidebar-primary: 40 100% 67%;
-    --sidebar-primary-foreground: 40 100% 15%;
-    --sidebar-accent: 120 25% 35%;
-    --sidebar-accent-foreground: 120 25% 95%;
-    --sidebar-border: 120 25% 30%;
-    --sidebar-ring: 40 100% 67%;
-  }
+    /* Background: Soft Cream/Parchment (Easier on eyes in sunlight) */
+    --background: 40 20% 97%; 
+    --foreground: 140 10% 20%;
 
-  .dark {
-    --background: 224 71% 10%;
-    --foreground: 210 40% 98%;
-    --card: 224 71% 12%;
-    --card-foreground: 210 40% 98%;
-    --popover: 224 71% 4%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 120 25% 65%;
-    --primary-foreground: 120 25% 10%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 40 100% 67%;
-    --accent-foreground: 40 100% 15%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 120 25% 65%;
-    --chart-1: 120 25% 65%;
-    --chart-2: 40 100% 67%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --sidebar-background: 224 71% 4%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 120 25% 65%;
-    --sidebar-primary-foreground: 120 25% 10%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 17%;
-    --sidebar-ring: 120 25% 65%;
+    /* Cards: Pure White */
+    --card: 0 0% 100%;
+    --card-foreground: 140 10% 20%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 140 10% 20%;
+
+    /* Primary: Deep Agriculture Green */
+    --primary: 146 60% 30%;
+    --primary-foreground: 0 0% 98%;
+
+    /* Secondary: Soft Earth/Sand */
+    --secondary: 40 20% 90%;
+    --secondary-foreground: 140 10% 20%;
+
+    /* Muted: Soft Grey-Green */
+    --muted: 140 10% 94%;
+    --muted-foreground: 140 5% 45%;
+
+    /* Accent: Harvest Gold */
+    --accent: 35 90% 50%;
+    --accent-foreground: 0 0% 10%;
+
+    /* Destructive: Soft Red */
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 140 10% 85%;
+    --input: 140 10% 85%;
+    --ring: 146 60% 35%;
+    
+    --radius: 1rem; /* Soft, friendly corners */
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground font-sans; }
+  h1, h2, h3, h4 { @apply tracking-tight font-bold text-primary; }
 }

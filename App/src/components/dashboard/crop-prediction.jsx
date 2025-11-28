@@ -1,217 +1,190 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import axios from "axios";
 
+// UI Components (Make sure these exist in your project!)
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FlaskConical, Loader2, Sparkles, Wand2, LocateFixed } from "lucide-react";
+import { Sprout, Loader2, Wand2, BarChart3 } from "lucide-react";
 
-// Schema for form validation
+// Updated Schema
 const formSchema = z.object({
-  Nitrogen: z.coerce.number().min(0, "Value must be positive"),
-  Phosphorus: z.coerce.number().min(0, "Value must be positive"),
-  Potassium: z.coerce.number().min(0, "Value must be positive"),
-  pH: z.coerce.number().min(0, "pH must be between 0 and 14").max(14),
-  Rainfall: z.coerce.number().min(0, "Value must be positive"),
-  Temperature: z.coerce.number(),
-  Soil_color: z.string().min(1, "Soil color is required"),
+  district: z.string().min(1, "District is required"),
+  N: z.coerce.number(),
+  P: z.coerce.number(),
+  K: z.coerce.number(),
+  pH: z.coerce.number(),
+  rainfall: z.coerce.number(),
+  temperature: z.coerce.number(),
+  soil_color: z.string().min(1, "Soil Color is required"),
 });
 
-// The URL of your running Flask API
+// IMPORTANT: Check that your Python backend is running on this port!
 const API_URL = "http://127.0.0.1:5001";
 
-export function CropPrediction() {
+export function CropRecommendation() {
   const [isPending, startTransition] = useTransition();
-  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
-  const [result, setResult] = useState(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [results, setResults] = useState([]); // Stores Top 5
   const [error, setError] = useState(null);
+  const [options, setOptions] = useState({ districts: [], soils: [] });
 
   const form = useForm({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      Nitrogen: 85,
-      Phosphorus: 50,
-      Potassium: 100,
-      pH: 7.0,
-      Rainfall: 1000,
-      Temperature: 25,
-      Soil_color: "Black",
-    },
+    defaultValues: { district: "", N: 0, P: 0, K: 0, pH: 0, rainfall: 0, temperature: 0, soil_color: "" },
   });
 
-  // Function to handle fetching data based on GPS
-  const handleGetLocationDefaults = () => {
-    setIsFetchingLocation(true);
-    setError(null);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          const response = await fetch(`${API_URL}/get_all_defaults`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lat: latitude, lon: longitude }),
-          });
-          if (!response.ok) throw new Error("Failed to fetch location data.");
+  const selectedDistrict = form.watch("district");
 
-          const data = await response.json();
+  // 1. Fetch Options on Load
+  useEffect(() => {
+    axios.get(`${API_URL}/get_form_options`)
+      .then(res => setOptions(res.data))
+      .catch(err => console.error("API Error - Is Backend Running?", err));
+  }, []);
 
-          // Using form.setValue to update form fields reactively
-          form.setValue('Nitrogen', data.N);
-          form.setValue('Phosphorus', data.P);
-          form.setValue('Potassium', data.K);
-          form.setValue('pH', data.pH);
-          form.setValue('Rainfall', Math.round(data.rainfall));
-          form.setValue('Temperature', data.temperature);
-          form.setValue('Soil_color', data.soil_type);
+  // 2. Auto-fill Data (Smart Knowledge Base)
+  useEffect(() => {
+    if (!selectedDistrict) return;
+    const fetchData = async () => {
+      setIsFetching(true);
+      try {
+        const res = await axios.post(`${API_URL}/get_environmental_data`, { district: selectedDistrict });
+        const d = res.data;
+        // Update all form fields
+        form.setValue("N", d.N); 
+        form.setValue("P", d.P); 
+        form.setValue("K", d.K);
+        form.setValue("pH", d.pH); 
+        form.setValue("temperature", d.temperature); 
+        form.setValue("rainfall", d.rainfall);
+        form.setValue("soil_color", d.soil_color);
+      } catch (e) { console.error(e); }
+      finally { setIsFetching(false); }
+    };
+    fetchData();
+  }, [selectedDistrict, form.setValue]);
 
-        } catch (e) {
-          setError("Could not fetch location-based data. Please enter manually.");
-          console.error(e);
-        } finally {
-          setIsFetchingLocation(false);
-        }
-      },
-      (err) => {
-        setError("Location access denied. Please enable it in your browser or enter data manually.");
-        setIsFetchingLocation(false);
-      }
-    );
-  };
-
-  // Function to handle the final prediction submission
+  // 3. Submit for Prediction
   function onSubmit(values) {
     startTransition(async () => {
-      setError(null);
-      setResult(null);
+      setError(null); setResults([]);
       try {
-        const formData = new FormData();
-        for (const key in values) {
-          formData.append(key, values[key]);
+        const res = await axios.post(`${API_URL}/predict`, values);
+        if (res.data.recommendations) {
+            setResults(res.data.recommendations);
+        } else {
+            setError("No recommendations found.");
         }
-
-        const response = await fetch(`${API_URL}/predict`, {
-          method: 'POST',
-          body: formData, // Sending as form data
-        });
-
-        const responseData = await response.json();
-        if (!response.ok) {
-            throw new Error(responseData.error || "Prediction failed.");
-        }
-        setResult(responseData);
-
-      } catch (e) {
-        setError(e.message || "Failed to get prediction. Please try again.");
-        console.error(e);
+      } catch (e) { 
+          setError("Prediction failed. Check backend console."); 
       }
     });
   }
 
   return (
-    <Card>
+    <Card className="w-full max-w-4xl mx-auto shadow-lg border-emerald-100">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FlaskConical className="w-6 h-6 text-primary" />
-              Crop Recommendation System
+          <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 border-b border-emerald-100">
+            <CardTitle className="flex items-center gap-2 text-emerald-800">
+              <Sprout className="w-6 h-6 text-emerald-600" /> Smart Crop Recommendation
             </CardTitle>
-            <CardDescription>Enter soil and weather conditions to get a crop recommendation.</CardDescription>
+            <CardDescription>Select a district to auto-load soil data and get Top 5 suitable crops.</CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
-             <Button type="button" variant="outline" onClick={handleGetLocationDefaults} disabled={isFetchingLocation} className="w-full">
-                {isFetchingLocation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LocateFixed className="mr-2 h-4 w-4" />}
-                Get Values From My Location
-            </Button>
+          <CardContent className="space-y-6 pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               {/* District Selector */}
+               <FormField control={form.control} name="district" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>District</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select District" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {options.districts.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+               )} />
+               
+               {/* Soil Selector */}
+               <FormField control={form.control} name="soil_color" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Soil Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select Soil" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {options.soils.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+               )} />
+            </div>
 
-            {/* Form Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField name="Nitrogen" control={form.control} render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Nitrogen (N)</FormLabel>
-                        <FormControl><Input type="number" placeholder="e.g., 85" {...field} /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField name="Phosphorus" control={form.control} render={({ field }) => (
-                     <FormItem>
-                        <FormLabel>Phosphorus (P)</FormLabel>
-                        <FormControl><Input type="number" placeholder="e.g., 50" {...field} /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField name="Potassium" control={form.control} render={({ field }) => (
-                     <FormItem>
-                        <FormLabel>Potassium (K)</FormLabel>
-                        <FormControl><Input type="number" placeholder="e.g., 100" {...field} /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField name="pH" control={form.control} render={({ field }) => (
-                     <FormItem>
-                        <FormLabel>Soil pH</FormLabel>
-                        <FormControl><Input type="number" step="0.1" placeholder="e.g., 7.0" {...field} /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField name="Rainfall" control={form.control} render={({ field }) => (
-                     <FormItem>
-                        <FormLabel>Annual Rainfall (mm)</FormLabel>
-                        <FormControl><Input type="number" placeholder="e.g., 1000" {...field} /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField name="Temperature" control={form.control} render={({ field }) => (
-                     <FormItem>
-                        <FormLabel>Temperature (°C)</FormLabel>
-                        <FormControl><Input type="number" step="0.1" placeholder="e.g., 25" {...field} /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField name="Soil_color" control={form.control} render={({ field }) => (
-                     <FormItem>
-                        <FormLabel>Soil Color</FormLabel>
-                         <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                                <SelectTrigger><SelectValue placeholder="Select a soil color" /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                <SelectItem value="Black">Black</SelectItem>
-                                <SelectItem value="Red">Red</SelectItem>
-                                <SelectItem value="Dark Brown">Dark Brown</SelectItem>
-                                <SelectItem value="Light Brown">Light Brown</SelectItem>
-                                <SelectItem value="Medium Brown">Medium Brown</SelectItem>
-                                <SelectItem value="Reddish Brown">Reddish Brown</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                )} />
+            {isFetching && (
+               <div className="text-center text-emerald-600 text-sm animate-pulse flex justify-center gap-2 items-center bg-emerald-50 p-2 rounded">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading environmental profile...
+               </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+               <FormField control={form.control} name="temperature" render={({ field }) => ( <FormItem><FormLabel>Temp (°C)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem> )}/>
+               <FormField control={form.control} name="rainfall" render={({ field }) => ( <FormItem><FormLabel>Rainfall (mm)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem> )}/>
+               <FormField control={form.control} name="pH" render={({ field }) => ( <FormItem><FormLabel>pH Level</FormLabel><FormControl><Input type="number" step="0.1" {...field} /></FormControl></FormItem> )}/>
+               <FormField control={form.control} name="N" render={({ field }) => ( <FormItem><FormLabel>Nitrogen (N)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem> )}/>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <FormField control={form.control} name="P" render={({ field }) => ( <FormItem><FormLabel>Phosphorus (P)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem> )}/>
+               <FormField control={form.control} name="K" render={({ field }) => ( <FormItem><FormLabel>Potassium (K)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem> )}/>
             </div>
           </CardContent>
 
-          <CardFooter className="flex-col items-stretch gap-4">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-              Get Suggestion
+          <CardFooter className="flex-col gap-6 pb-8">
+            <Button type="submit" disabled={isPending || isFetching} className="w-full bg-emerald-700 hover:bg-emerald-800 text-white">
+               {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />} Analyze Suitability
             </Button>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            {result && (
-              <div className="space-y-2 rounded-lg border bg-secondary/50 p-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    Recommended Crop
-                </h3>
-                <p className="text-lg text-center font-bold text-primary">{result.prediction_text}</p>
-              </div>
+            
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+
+            {/* --- RESULTS SECTION --- */}
+            {results.length > 0 && (
+               <div className="w-full space-y-4 pt-4 border-t border-gray-100">
+                  <h3 className="font-semibold text-lg flex items-center gap-2 text-emerald-900">
+                     <BarChart3 className="w-5 h-5" /> Top Crop Recommendations
+                  </h3>
+                  <div className="space-y-3">
+                     {results.map((item, index) => (
+                        <div key={index} className="space-y-1">
+                           <div className="flex justify-between text-sm font-medium">
+                              {/* Top result is bold and dark green */}
+                              <span className={index===0 ? "text-emerald-700 font-bold" : "text-gray-700"}>
+                                {index+1}. {item.crop}
+                              </span>
+                              <span className="text-gray-500">{item.probability}% Match</span>
+                           </div>
+                           
+                           {/* Progress Bar Container */}
+                           <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                              {/* Progress Bar Fill - Animated */}
+                              <div 
+                                className={`h-full rounded-full transition-all duration-1000 ${
+                                    index === 0 ? "bg-emerald-600" : "bg-emerald-300"
+                                }`} 
+                                style={{ width: `${item.probability}%` }} 
+                              />
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </div>
             )}
           </CardFooter>
         </form>

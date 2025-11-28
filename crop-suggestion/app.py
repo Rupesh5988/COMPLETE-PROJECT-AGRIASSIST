@@ -1,119 +1,140 @@
-# app.py (Updated for React Front-End)
-
 from flask import Flask, request, jsonify
-from flask_cors import CORS  # NEW: Import CORS
+from flask_cors import CORS
 import pickle
-import pandas as pd
+import numpy as np
+import random
+from datetime import datetime, timedelta, timezone
 import requests
-from datetime import datetime, timedelta
 
 app = Flask(__name__)
-CORS(app)  # NEW: Enable CORS for your entire app
+CORS(app)
 
-# --- Load Model and Encoder (No changes here) ---
+# --- Load Model & Encoders ---
 try:
     model = pickle.load(open('final_model.pkl', 'rb'))
-    crop_encoder = pickle.load(open('final_crop_encoder.pkl', 'rb'))
+    le_district = pickle.load(open('le_district_crop.pkl', 'rb'))
+    le_soil = pickle.load(open('le_soil_crop.pkl', 'rb'))
+    le_crop = pickle.load(open('le_crop_target.pkl', 'rb'))
 except FileNotFoundError:
-    print("Error: Model or encoder files not found.")
+    print("Error: Models missing. Run train_pro.py first.")
     exit()
 
-MODEL_FEATURES = [
-    'Nitrogen', 'Phosphorus', 'Potassium', 'pH', 'Rainfall', 'Temperature',
-    'Soil_color_Dark Brown', 'Soil_color_Light Brown', 'Soil_color_Medium Brown',
-    'Soil_color_Red', 'Soil_color_Red ', 'Soil_color_Reddish Brown'
-]
-
-SOIL_DEFAULTS = {
-    "Black": {"N": 85, "P": 50, "K": 100, "pH": 7.0},
-    "Red": {"N": 70, "P": 45, "K": 90, "pH": 6.5},
-    "Dark Brown": {"N": 90, "P": 55, "K": 105, "pH": 6.8},
-    "Default": {"N": 80, "P": 50, "K": 95, "pH": 6.7}
+# --- PRO KNOWLEDGE BASE (High Accuracy) ---
+# Specific characteristics for Maharashtra districts
+DISTRICT_PROFILES = {
+    "Kolhapur": { 
+        "soil": "Red",   
+        "avg_temp": 27.5, "avg_rain": 2000, "lat": 16.7050, "lon": 74.2433,
+        "N": 90, "P": 40, "K": 50, "pH": 6.5 # Acidic soil, heavy rain
+    },
+    "Pune": { 
+        "soil": "Black", 
+        "avg_temp": 26.0, "avg_rain": 1100, "lat": 18.5204, "lon": 73.8567,
+        "N": 120, "P": 55, "K": 80, "pH": 7.2 # Good for Sugarcane/Cotton
+    },
+    "Sangli": { 
+        "soil": "Black", 
+        "avg_temp": 29.0, "avg_rain": 600,  "lat": 16.8524, "lon": 74.5815,
+        "N": 100, "P": 80, "K": 140, "pH": 7.4 # High K (Good for Grapes)
+    },
+    "Satara": { 
+        "soil": "Black", 
+        "avg_temp": 26.5, "avg_rain": 900,  "lat": 17.6800, "lon": 73.9900,
+        "N": 110, "P": 60, "K": 90, "pH": 7.0 
+    },
+    "Solapur": { 
+        "soil": "Black", 
+        "avg_temp": 32.0, "avg_rain": 500,  "lat": 17.6599, "lon": 75.9004,
+        "N": 80, "P": 40, "K": 100, "pH": 7.5 # Dry, good for Pomegranate/Jowar
+    }
 }
 
-# --- ROUTES ---
-
-@app.route('/')
-def home():
-    # This route is no longer needed for the React app but can be kept for testing
-    return "Flask Crop Prediction API is running!"
-
-# --- /get_all_defaults Endpoint (No changes here, it already works!) ---
-@app.route('/get_all_defaults', methods=['POST'])
-def get_all_defaults():
+def fetch_weather_safe(lat, lon, fallback_temp, fallback_rain):
+    """Fetches live weather but fails gracefully to averages."""
     try:
-        data = request.get_json()
-        lat, lon = data['lat'], data['lon']
+        # Short timeout (2s) to keep UI snappy
+        resp = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m", timeout=2)
+        resp.raise_for_status()
+        temp = resp.json()['current']['temperature_2m']
         
-        # ... (all your API calling logic for soil and weather remains the same) ...
-        soil_url = f"https://rest.isric.org/soilgrids/v2.0/properties/query?lon={lon}&lat={lat}&property=wrb_class_name&depth=0-5cm&value=strings"
-        soil_response = requests.get(soil_url, timeout=10)
-        soil_api_data = soil_response.json()
-        soil_class_name = soil_api_data['properties']['layers'][0]['depths'][0]['values']['strings'][0]
-
-        if 'Vertisols' in soil_class_name: soil_type = "Black"
-        elif 'Nitisols' in soil_class_name: soil_type = "Red"
-        else: soil_type = "Dark Brown"
+        # Historical rain (Past year)
+        today = datetime.now(timezone.utc)
+        start = (today - timedelta(days=365)).strftime('%Y-%m-%d')
+        end = today.strftime('%Y-%m-%d')
+        resp_hist = requests.get(f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={start}&end_date={end}&daily=rain_sum", timeout=3)
+        rain = sum(filter(None, resp_hist.json()['daily']['rain_sum']))
         
-        defaults = SOIL_DEFAULTS.get(soil_type, SOIL_DEFAULTS["Default"])
-        defaults['soil_type'] = soil_type
+        return temp, rain
+    except:
+        return fallback_temp, fallback_rain
 
-        current_weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m"
-        weather_response = requests.get(current_weather_url, timeout=10)
-        defaults['temperature'] = weather_response.json()['current']['temperature_2m']
+@app.route('/get_form_options', methods=['GET'])
+def get_form_options():
+    return jsonify({
+        'districts': list(DISTRICT_PROFILES.keys()),
+        'soils': list(le_soil.classes_)
+    })
 
-        today = datetime.now(datetime.UTC)
-        last_year = today - timedelta(days=365)
-        historical_weather_url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={last_year.strftime('%Y-%m-%d')}&end_date={today.strftime('%Y-%m-%d')}&daily=precipitation_sum"
-        historical_response = requests.get(historical_weather_url, timeout=10)
-        precipitation_data = historical_response.json()['daily']['precipitation_sum']
-        defaults['rainfall'] = sum(p for p in precipitation_data if p is not None)
+@app.route('/get_environmental_data', methods=['POST'])
+def get_environmental_data():
+    data = request.get_json()
+    district = data.get('district')
+    
+    # 1. Smart Profile Lookup
+    profile = DISTRICT_PROFILES.get(district)
+    if not profile:
+        return jsonify({"error": "District not found"}), 404
+    
+    # 2. Weather (Live or Fallback)
+    if profile['lat'] != 0:
+        temp, rain = fetch_weather_safe(profile['lat'], profile['lon'], profile['avg_temp'], profile['avg_rain'])
+    else:
+        temp, rain = profile['avg_temp'], profile['avg_rain']
+        
+    # 3. Precise Nutrients (From Profile, not generic defaults)
+    # This ensures "Sangli" gets High K for Grapes, etc.
+    return jsonify({
+        "soil_color": profile['soil'],
+        "temperature": round(temp, 1),
+        "rainfall": round(rain, 1),
+        "N": profile['N'], 
+        "P": profile['P'], 
+        "K": profile['K'], 
+        "pH": profile['pH']
+    })
 
-        return jsonify(defaults)
-    except Exception as e:
-        print(f"API Error: {e}")
-        defaults = SOIL_DEFAULTS["Default"]
-        defaults.update({'soil_type': "Black", 'temperature': 25.0, 'rainfall': 1000})
-        return jsonify(defaults)
-
-# --- /predict Endpoint (CHANGED to return JSON) ---
 @app.route('/predict', methods=['POST'])
 def predict():
+    data = request.get_json()
     try:
-        # Create a DataFrame with all the model features initialized to 0
-        input_features = pd.DataFrame([[0]*len(MODEL_FEATURES)], columns=MODEL_FEATURES)
-
-        # Fill in the numeric values from the form data
-        # Note: 'request.form' works for FormData sent from the browser
-        input_features['Nitrogen'] = float(request.form['Nitrogen'])
-        input_features['Phosphorus'] = float(request.form['Phosphorus'])
-        input_features['Potassium'] = float(request.form['Potassium'])
-        input_features['pH'] = float(request.form['pH'])
-        input_features['Rainfall'] = float(request.form['Rainfall'])
-        input_features['Temperature'] = float(request.form['Temperature'])
-
-        # Handle the one-hot encoded soil color
-        selected_soil_color = request.form['Soil_color']
-        soil_color_column = f'Soil_color_{selected_soil_color}'
+        # Encode Inputs
+        d_val = le_district.transform([data['district']])[0]
         
-        if soil_color_column in input_features.columns:
-            input_features[soil_color_column] = 1
+        # Handle soil gracefully
+        s_input = data['soil_color']
+        if s_input not in le_soil.classes_:
+            # Fallback if UI sends something weird
+            s_input = "Black" 
+        s_val = le_soil.transform([s_input])[0]
         
-        # Make and decode the prediction
-        prediction_encoded = model.predict(input_features)
-        crop_name = crop_encoder.inverse_transform(prediction_encoded)[0]
-
-        # CHANGED: Return a JSON response instead of rendering a template
-        return jsonify({
-            "prediction_text": crop_name.title()
-        })
-
+        features = np.array([[
+            float(data['N']), float(data['P']), float(data['K']), float(data['pH']),
+            float(data['rainfall']), float(data['temperature']), d_val, s_val
+        ]])
+        
+        # Get Probabilities (Top 5)
+        probs = model.predict_proba(features)[0]
+        results = [
+            {"crop": name, "probability": round(prob * 100, 2)}
+            for name, prob in zip(le_crop.classes_, probs)
+        ]
+        top_5 = sorted(results, key=lambda x: x['probability'], reverse=True)[:5]
+        
+        return jsonify({'recommendations': top_5})
+        
     except Exception as e:
-        print(f"Prediction Error: {e}")
-        # CHANGED: Return a JSON error message with a 400 status code
-        return jsonify({
-            "error": f"An error occurred: {e}"
-        }), 400
+        print(f"Error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001)

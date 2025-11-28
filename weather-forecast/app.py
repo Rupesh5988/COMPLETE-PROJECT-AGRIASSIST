@@ -1,69 +1,155 @@
-# app.py
-
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
 import joblib
+import pandas as pd
+import requests
+import numpy as np
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 
+# --- 1. Load Your Smart Irrigation Model ---
+MODEL_PATH = 'irrigation_model_v2.pkl'
 try:
-    model = joblib.load('irrigation_model_v2.pkl')
-    print("Model loaded successfully!")
+    model = joblib.load(MODEL_PATH)
+    print(f"✅ Loaded AI Model: {MODEL_PATH}")
 except FileNotFoundError:
-    print("Model file 'irrigation_model_v2.pkl' not found! Please run train_model.py first.")
+    print("❌ Model not found. (Irrigation advice will be generic)")
     model = None
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/weather')
+# --- 2. Route: Smart Weather Forecast (For Weather Component) ---
+@app.route('/weather', methods=['GET'])
 def get_weather():
-    print("\n--- Received request for /weather ---")
     lat = request.args.get('lat')
     lon = request.args.get('lon')
 
     if not lat or not lon:
-        return jsonify({'error': 'Latitude and Longitude are required'}), 400
-
-    # UPDATED: Added 'weather_code' to the 'current' parameters
-    API_URL = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_mean&timezone=auto"
+        return jsonify({'error': 'Coordinates required'}), 400
 
     try:
-        print(f"Calling API: {API_URL}")
-        response = requests.get(API_URL, timeout=15) 
-        response.raise_for_status()
-        data = response.json()
-        print("API call successful!")
+        # Fetch Data (Current + Daily Forecast)
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto"
+        res = requests.get(url, timeout=10)
+        res.raise_for_status()
+        data = res.json()
 
-        advice = "Could not generate advice."
+        # AI Prediction for Irrigation
+        advice_text = "Data unavailable"
+        advice_type = "neutral" 
+
         if model:
-            today_temp_max = data['daily']['temperature_2m_max'][0]
-            today_humidity = data['daily']['relative_humidity_2m_mean'][0]
-            today_rainfall = data['daily']['precipitation_sum'][0]
-            model_input = [[today_temp_max, today_humidity, today_rainfall]]
-            prediction = model.predict(model_input)
-            
-            if prediction[0] == 1:
-                advice = "High temperature and low rain chance. Irrigation is recommended."
-            else:
-                advice = "Sufficient rain or cooler temperatures expected. No irrigation needed today."
-        
-        data['agricultural_advice'] = advice
-        print("Prediction generated. Sending data back to browser.")
-        return jsonify(data)
+            # Prepare inputs: Max Temp, Humidity, Rain
+            max_temp = data['daily']['temperature_2m_max'][0]
+            humidity = data['current']['relative_humidity_2m']
+            rain = data['daily']['precipitation_sum'][0]
 
-    except requests.exceptions.Timeout:
-        print("--> ERROR: The request to Open-Meteo timed out.")
-        return jsonify({'error': 'The weather API request timed out. This may be due to a network firewall.'}), 500
-    except requests.exceptions.RequestException as e:
-        print(f"--> ERROR: An error occurred when calling the API: {e}")
+            input_df = pd.DataFrame([[max_temp, humidity, rain]], 
+                                  columns=['max_temp_c', 'humidity_percent', 'rainfall_mm'])
+            
+            prediction = model.predict(input_df)[0]
+            
+            if prediction == 1:
+                advice_text = "⚠️ Soil moisture is low. Irrigation is recommended today."
+                advice_type = "warning"
+            else:
+                advice_text = "✅ Moisture levels are good. No irrigation needed."
+                advice_type = "success"
+
+        return jsonify({
+            "current": {
+                "temp": round(data['current']['temperature_2m']),
+                "humidity": data['current']['relative_humidity_2m'],
+                "wind": data['current']['wind_speed_10m'],
+                "weather_code": data['current']['weather_code'],
+                "location": "Local Field Sensor"
+            },
+            "daily_stats": {
+                "max_temp": data['daily']['temperature_2m_max'][0],
+                "min_temp": data['daily']['temperature_2m_min'][0],
+                "rain_mm": data['daily']['precipitation_sum'][0]
+            },
+            "forecast": data['daily'],
+            "ai_advice": {
+                "text": advice_text,
+                "type": advice_type
+            }
+        })
+
+    except Exception as e:
+        print(f"Weather Error: {e}")
         return jsonify({'error': str(e)}), 500
-    except (KeyError, IndexError) as e:
-        print(f"--> ERROR: Unexpected API response format. Missing key or index: {e}")
-        return jsonify({'error': f'Unexpected API response format. Missing data: {e}'}), 500
+
+
+# --- 3. Route: Intelligent Alert System (For Alert Component) ---
+@app.route('/get_alerts', methods=['GET'])
+def get_alerts():
+    lat = request.args.get('lat')
+    lon = request.args.get('lon')
+
+    if not lat or not lon:
+        return jsonify({'error': 'Coordinates required'}), 400
+
+    try:
+        # Fetch Forecast specifically for Risks
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=relative_humidity_2m,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto"
+        res = requests.get(url, timeout=10)
+        data = res.json()
+
+        alerts = []
+        
+        # --- RISK ANALYSIS LOGIC ---
+
+        # 1. FLOOD & RAIN RISKS
+        today_rain = data['daily']['precipitation_sum'][0]
+        if today_rain > 65:
+            alerts.append({
+                "id": 1, "type": "critical", "title": "Flash Flood Warning",
+                "desc": f"Extreme rainfall ({today_rain}mm) detected. Evacuate low-lying fields immediately."
+            })
+        elif today_rain > 35:
+            alerts.append({
+                "id": 2, "type": "warning", "title": "Heavy Rain Alert",
+                "desc": f"Heavy rain ({today_rain}mm) expected. Avoid spraying chemicals today."
+            })
+
+        # 2. TEMPERATURE RISKS
+        max_temp = data['daily']['temperature_2m_max'][0]
+        min_temp = data['daily']['temperature_2m_min'][0]
+        
+        if max_temp > 40:
+             alerts.append({
+                "id": 3, "type": "critical", "title": "Heatwave Emergency",
+                "desc": f"Extreme heat ({max_temp}°C). Irrigate crops immediately to prevent wilting."
+            })
+        elif min_temp < 5:
+             alerts.append({
+                "id": 4, "type": "warning", "title": "Frost Advisory",
+                "desc": f"Freezing temperatures ({min_temp}°C) tonight. Cover sensitive saplings."
+            })
+
+        # 3. PEST & DISEASE (The "Smart" Part)
+        # Innovation: High Humidity + Warmth = Fungus
+        humidity = data['current']['relative_humidity_2m']
+        if humidity > 85 and max_temp > 25:
+             alerts.append({
+                "id": 5, "type": "info", "title": "Fungal Blight Risk",
+                "desc": "High humidity and heat detected. Conditions are ideal for fungal growth. Scout fields."
+            })
+
+        # 4. WIND RISKS
+        wind = data['current']['wind_speed_10m']
+        if wind > 30:
+            alerts.append({
+                "id": 6, "type": "warning", "title": "High Wind Alert",
+                "desc": f"Strong winds ({wind} km/h). Secure polyhouses and tall crops."
+            })
+
+        return jsonify({"alerts": alerts})
+
+    except Exception as e:
+        print(f"Alert Error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, use_reloader=False, port=5003)
+    print("🚀 Weather & Alert Backend Running on Port 5003...")
+    app.run(port=5003, debug=True)
