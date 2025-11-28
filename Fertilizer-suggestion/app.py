@@ -16,12 +16,13 @@ try:
     le_soil = pickle.load(open('le_soil.pkl', 'rb'))
     le_crop = pickle.load(open('le_crop.pkl', 'rb'))
     le_fertilizer = pickle.load(open('le_fertilizer.pkl', 'rb'))
+    print("✅ Models loaded successfully")
 except FileNotFoundError:
-    print("Error: .pkl files missing. Please run train.py first.")
+    print("❌ Error: One or more .pkl files are missing. Please run train.py first.")
     exit()
 
 # --- SMART KNOWLEDGE BASE ---
-# Hardcoded data for accuracy and speed
+# Maps District Names -> Geographic & Soil Data
 DISTRICT_PROFILES = {
     "Kolhapur": { "soil": "Red",   "avg_temp": 27.0, "avg_rain": 2500, "lat": 16.7050, "lon": 74.2433 },
     "Pune":     { "soil": "Black", "avg_temp": 26.0, "avg_rain": 1200, "lat": 18.5204, "lon": 73.8567 },
@@ -30,6 +31,7 @@ DISTRICT_PROFILES = {
     "Solapur":  { "soil": "Black", "avg_temp": 30.0, "avg_rain": 500,  "lat": 17.6599, "lon": 75.9004 }
 }
 
+# Default NPK values if lab data isn't provided
 SOIL_NUTRIENTS = {
     "Black":  {"N": 100, "P": 60, "K": 120, "pH": 7.2}, 
     "Red":    {"N": 80,  "P": 40, "K": 80,  "pH": 6.5},
@@ -40,7 +42,7 @@ SOIL_NUTRIENTS = {
 # --- Utility: Safe Weather Fetch ---
 def fetch_weather_safe(lat, lon, fallback_temp, fallback_rain):
     try:
-        # 1. Current Temp (Short timeout)
+        # 1. Current Temp
         curr_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m"
         resp_curr = requests.get(curr_url, timeout=2) 
         resp_curr.raise_for_status()
@@ -66,7 +68,7 @@ def fetch_weather_safe(lat, lon, fallback_temp, fallback_rain):
 @app.route('/get_form_options', methods=['GET'])
 def get_form_options():
     try:
-        # We now return districts from our Knowledge Base
+        # Return districts from our Knowledge Base so the UI matches the Backend
         return jsonify({
             'districts': list(DISTRICT_PROFILES.keys()), 
             'crops': list(le_crop.classes_)
@@ -77,41 +79,47 @@ def get_form_options():
 @app.route('/get_environmental_data', methods=['POST'])
 def get_environmental_data():
     """
-    API endpoint to fetch environmental data from SoilGrids and Open-Meteo.
+    FIXED: Now accepts 'district' name instead of 'lat/lon'.
     """
     try:
         data = request.get_json()
-        lat, lon = data['lat'], data['lon']
+        district_name = data.get('district') # This is what React sends now
 
-        soil_url = f"https://rest.isric.org/soilgrids/v2.0/properties/query?lon={lon}&lat={lat}&property=wrb_class_name&depth=0-5cm&value=strings"
-        soil_response = requests.get(soil_url, timeout=15).json()
-        soil_class_name = soil_response['properties']['layers'][0]['depths'][0]['values']['strings'][0]
-
-        soil_type_mapped = "Clayey"
-        if 'Vertisols' in soil_class_name: soil_type_mapped = "Black"
-        elif 'Nitisols' in soil_class_name or 'Ferralsols' in soil_class_name: soil_type_mapped = "Red"
+        # 1. Look up the district in our database
+        # If not found, default to Pune's data
+        profile = DISTRICT_PROFILES.get(district_name, DISTRICT_PROFILES["Pune"])
         
-        defaults = SOIL_DEFAULTS.get(soil_type_mapped, SOIL_DEFAULTS["Default"])
-        defaults['soil_color'] = soil_type_mapped
+        # 2. Get Soil Type
+        soil_color = profile['soil']
+        
+        # 3. Get Weather (Try Live API first, fallback to Profile Average)
+        temp, rain = fetch_weather_safe(
+            profile['lat'], 
+            profile['lon'], 
+            profile['avg_temp'], 
+            profile['avg_rain']
+        )
 
-        current_weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m"
-        weather_response = requests.get(current_weather_url, timeout=15).json()
-        defaults['temperature'] = weather_response['current']['temperature_2m']
+        # 4. Get NPK Defaults
+        nutrients = SOIL_NUTRIENTS.get(soil_color, SOIL_NUTRIENTS["Default"])
 
-        today = datetime.utcnow()
-        last_year = today - timedelta(days=365)
-        historical_weather_url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={last_year.strftime('%Y-%m-%d')}&end_date={today.strftime('%Y-%m-%d')}&daily=rain_sum"
-        historical_response = requests.get(historical_weather_url, timeout=15).json()
-        precipitation_data = historical_response['daily']['rain_sum']
-        defaults['rainfall'] = sum(p for p in precipitation_data if p is not None)
-
-        return jsonify(defaults)
+        return jsonify({
+            "soil_color": soil_color,
+            "temperature": round(temp, 1),
+            "rainfall": round(rain, 1),
+            "N": nutrients['N'],
+            "P": nutrients['P'],
+            "K": nutrients['K'],
+            "pH": nutrients['pH']
+        })
 
     except Exception as e:
         print(f"--- API ERROR ---: {e}")
-        error_defaults = SOIL_DEFAULTS["Default"]
-        error_defaults.update({'soil_color': "Black", 'temperature': 25.0, 'rainfall': 1000})
-        return jsonify(error_defaults)
+        # Fallback values to prevent crash
+        return jsonify({
+            "soil_color": "Black", "temperature": 25.0, "rainfall": 1000,
+            "N": 80, "P": 50, "K": 90, "pH": 7.0
+        })
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -119,6 +127,7 @@ def predict():
     try:
         d_val = le_district.transform([data['district']])[0]
         
+        # Handle case where soil color might not match model training
         s_color = data.get('soil_color', 'Black')
         if s_color not in le_soil.classes_: s_color = 'Black'
         s_val = le_soil.transform([s_color])[0]

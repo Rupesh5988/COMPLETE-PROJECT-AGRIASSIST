@@ -4,28 +4,29 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { irrigationSchedule } from "@/ai/flows/irrigation-scheduling";
+// 1. IMPORT THE LANGUAGE HOOK
+import { useLanguage } from "@/components/language-provider"; 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Droplets, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { Droplets, Loader2, Sparkles, Wand2, CloudRain } from "lucide-react";
 
-
+// Schema remains same (validation messages can be translated too, but keeping simple for now)
 const formSchema = z.object({
-  cropType: z.string().min(2, "Crop type is required."),
-  soilType: z.string().min(2, "Soil type is required."),
-  weatherForecast: z.string().min(10, "Weather forecast is required."),
-  cropWaterNeeds: z.string().min(5, "Crop water needs are required."),
-  fieldSize: z.coerce.number().min(0.1, "Field size must be positive."),
-  irrigationMethod: z.string().min(2, "Irrigation method is required."),
+  cropType: z.string().min(2, "Required"),
+  soilType: z.string().min(2, "Required"),
+  fieldSize: z.coerce.number().min(0.1, "Required"),
+  irrigationMethod: z.string().min(2, "Required"),
 });
 
+const API_URL = "http://127.0.0.1:5005/irrigation-plan"; 
+
 export function IrrigationAdvisory() {
+  const { t } = useLanguage(); // 2. USE THE HOOK
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -33,14 +34,7 @@ export function IrrigationAdvisory() {
 
   const form = useForm({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      cropType: "Corn",
-      soilType: "Clay Loam",
-      weatherForecast: "Sunny for the next 5 days, temps around 28°C.",
-      cropWaterNeeds: "High during tasseling stage.",
-      fieldSize: 10,
-      irrigationMethod: "Drip",
-    },
+    defaultValues: { cropType: "", soilType: "Loam", fieldSize: 1, irrigationMethod: "Drip" },
   });
 
   function onSubmit(values) {
@@ -48,79 +42,138 @@ export function IrrigationAdvisory() {
       setError(null);
       setResult(null);
       try {
-        const schedule = await irrigationSchedule(values);
-        setResult(schedule);
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(values),
+        });
+        if (!response.ok) throw new Error("Connection failed");
+        const data = await response.json();
+        setResult(data);
         setSheetOpen(false);
       } catch (e) {
-        setError("Failed to get schedule. Please try again.");
-        console.error(e);
+        setError("Error connecting to server.");
       }
     });
   }
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Droplets className="w-6 h-6 text-primary" />
-          Irrigation Advisory
+    <Card className="flex flex-col border-emerald-100 shadow-sm">
+      <CardHeader className="bg-emerald-50/50 pb-4">
+        <CardTitle className="flex items-center gap-2 text-emerald-800">
+          <Droplets className="w-5 h-5 text-emerald-600" />
+          {t("card_irri_title")}
         </CardTitle>
-        <CardDescription>Optimize water usage with an AI-generated irrigation schedule.</CardDescription>
+        <CardDescription>{t("card_irri_desc")}</CardDescription>
       </CardHeader>
-      <CardContent className="flex-grow space-y-4">
+      
+      <CardContent className="flex-grow space-y-4 pt-6">
         {result ? (
-           <div className="space-y-4 rounded-lg border bg-secondary/50 p-4 text-sm">
-            <h3 className="font-semibold flex items-center gap-2"><Sparkles className="w-4 h-4 text-accent"/>Generated Schedule</h3>
-            <div className="grid grid-cols-2 gap-2">
-                <span className="text-muted-foreground">Schedule:</span>
-                <span className="font-medium">{result.schedule}</span>
-                <span className="text-muted-foreground">Water Amount:</span>
-                <span className="font-medium">{result.waterAmount}</span>
-                <span className="text-muted-foreground">Frequency:</span>
-                <span className="font-medium">{result.frequency}</span>
+           <div className="space-y-4 rounded-xl border border-emerald-100 bg-white p-4 text-sm shadow-sm animate-in fade-in">
+            <h3 className="font-semibold flex items-center gap-2 text-emerald-700">
+                <Sparkles className="w-4 h-4 text-amber-500"/>
+                {t("res_insight")}
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-3 rounded-lg">
+                    <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">{t("res_freq")}</span>
+                    <p className="font-medium text-slate-800 mt-1">{result.frequency}</p>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-lg">
+                    <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">{t("res_vol")}</span>
+                    <p className="font-medium text-slate-800 mt-1">{result.waterAmount}</p>
+                </div>
             </div>
-             <p className="text-muted-foreground pt-2 border-t"><span className="font-medium text-foreground">Notes:</span> {result.notes}</p>
+            
+            <div className="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                <p className="text-slate-700 mt-1 leading-relaxed whitespace-pre-line">{result.notes}</p>
+            </div>
+            
+            <div className="pt-2 text-center">
+                <p className="text-xs text-slate-400">{t("res_schedule_note")}</p>
+            </div>
           </div>
         ) : (
-            <div className="text-center text-muted-foreground p-4">
-                <p>Click below to generate a new irrigation schedule.</p>
+            <div className="flex flex-col items-center justify-center py-6 text-center space-y-3">
+                <div className="bg-emerald-100 p-3 rounded-full">
+                    <Wand2 className="w-6 h-6 text-emerald-600" />
+                </div>
+                <div className="space-y-1">
+                    <p className="font-medium text-slate-700">{t("res_empty")}</p>
+                    <p className="text-xs text-slate-500 max-w-[200px] mx-auto">{t("res_empty_desc")}</p>
+                </div>
             </div>
         )}
       </CardContent>
-      <CardFooter>
+      
+      <CardFooter className="pt-2 pb-6">
         <Sheet open={isSheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
-            <Button className="w-full">
-              <Wand2 className="mr-2 h-4 w-4" />
-              {result ? "Generate New Schedule" : "Generate Schedule"}
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+              {result ? t("btn_recalc") : t("btn_generate")}
             </Button>
           </SheetTrigger>
           <SheetContent className="sm:max-w-lg">
             <SheetHeader>
-              <SheetTitle>Generate Irrigation Schedule</SheetTitle>
-              <SheetDescription>
-                Provide details about your field to get a customized schedule.
-              </SheetDescription>
+              <SheetTitle>{t("card_irri_title")}</SheetTitle>
+              <SheetDescription>{t("card_irri_desc")}</SheetDescription>
             </SheetHeader>
-            <div className="py-4 max-h-[80vh] overflow-y-auto pr-4">
+            <div className="py-6">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField control={form.control} name="cropType" render={({ field }) => ( <FormItem><FormLabel>Crop Type</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="soilType" render={({ field }) => ( <FormItem><FormLabel>Soil Type</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="weatherForecast" render={({ field }) => ( <FormItem><FormLabel>Weather Forecast</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="cropWaterNeeds" render={({ field }) => ( <FormItem><FormLabel>Crop Water Needs</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="fieldSize" render={({ field }) => ( <FormItem><FormLabel>Field Size (acres)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="irrigationMethod" render={({ field }) => ( <FormItem><FormLabel>Irrigation Method</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                        <SelectContent><SelectItem value="Drip">Drip</SelectItem><SelectItem value="Sprinkler">Sprinkler</SelectItem><SelectItem value="Flood">Flood</SelectItem></SelectContent>
-                        </Select><FormMessage /></FormItem> )} />
-                    <SheetFooter className="mt-6">
-                        <Button type="submit" disabled={isPending}>
-                        {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                        Generate
-                        </Button>
-                    </SheetFooter>
-                    {error && <p className="text-sm text-destructive mt-2 text-center">{error}</p>}
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name="cropType" render={({ field }) => ( 
+                            <FormItem>
+                                <FormLabel>{t("label_crop")}</FormLabel>
+                                <FormControl><Input placeholder={t("ph_crop")} {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem> 
+                        )} />
+                        
+                        <FormField control={form.control} name="fieldSize" render={({ field }) => ( 
+                            <FormItem>
+                                <FormLabel>{t("label_size")}</FormLabel>
+                                <FormControl><Input type="number" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem> 
+                        )} />
+                    </div>
+
+                    <FormField control={form.control} name="soilType" render={({ field }) => ( 
+                        <FormItem>
+                            <FormLabel>{t("label_soil")}</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    <SelectItem value="Clay">{t("soil_clay")}</SelectItem>
+                                    <SelectItem value="Loam">{t("soil_loam")}</SelectItem>
+                                    <SelectItem value="Sandy">{t("soil_sandy")}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </FormItem> 
+                    )} />
+
+                    <FormField control={form.control} name="irrigationMethod" render={({ field }) => ( 
+                        <FormItem>
+                            <FormLabel>{t("label_method")}</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    <SelectItem value="Drip">{t("method_drip")}</SelectItem>
+                                    <SelectItem value="Sprinkler">{t("method_sprinkler")}</SelectItem>
+                                    <SelectItem value="Flood">{t("method_flood")}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </FormItem> 
+                    )} />
+
+                    <Button type="submit" disabled={isPending} className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700">
+                        {isPending ? (
+                            <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("btn_analyzing")} </>
+                        ) : ( t("btn_calc") )}
+                    </Button>
                 </form>
               </Form>
             </div>

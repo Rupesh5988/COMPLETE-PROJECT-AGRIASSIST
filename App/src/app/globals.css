@@ -2,49 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 @layer base {
   :root {
-    /* Background: Soft Cream/Parchment (Easier on eyes in sunlight) */
-    --background: 40 20% 97%; 
+    /* --- LIGHT MODE --- */
+    --background: 40 20% 97%;
     --foreground: 140 10% 20%;
-
-    /* Cards: Pure White */
     --card: 0 0% 100%;
     --card-foreground: 140 10% 20%;
-    
     --popover: 0 0% 100%;
     --popover-foreground: 140 10% 20%;
-
-    /* Primary: Deep Agriculture Green */
     --primary: 146 60% 30%;
     --primary-foreground: 0 0% 98%;
-
-    /* Secondary: Soft Earth/Sand */
     --secondary: 40 20% 90%;
     --secondary-foreground: 140 10% 20%;
-
-    /* Muted: Soft Grey-Green */
     --muted: 140 10% 94%;
     --muted-foreground: 140 5% 45%;
-
-    /* Accent: Harvest Gold */
     --accent: 35 90% 50%;
     --accent-foreground: 0 0% 10%;
-
-    /* Destructive: Soft Red */
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 98%;
-
     --border: 140 10% 85%;
     --input: 140 10% 85%;
     --ring: 146 60% 35%;
+    --radius: 1rem;
+  }
+ 
+  /* --- DARK MODE --- */
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
     
-    --radius: 1rem; /* Soft, friendly corners */
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+ 
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+ 
+    --primary: 146 50% 50%;
+    --primary-foreground: 222 47% 11%;
+ 
+    --secondary: 217 32% 17%;
+    --secondary-foreground: 210 40% 98%;
+ 
+    --muted: 217 32% 17%;
+    --muted-foreground: 215 20% 65%;
+ 
+    --accent: 35 90% 50%;
+    --accent-foreground: 210 40% 98%;
+ 
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 40% 98%;
+ 
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 146 50% 50%;
   }
 }
 
 @layer base {
   * { @apply border-border; }
-  body { @apply bg-background text-foreground font-sans; }
+  body { @apply bg-background text-foreground; }
   h1, h2, h3, h4 { @apply tracking-tight font-bold text-primary; }
 }

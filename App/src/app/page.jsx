@@ -1,117 +1,87 @@
-<<<<<<< HEAD
+"use client"; // IMPORTANT: Needs to be a client component to read the language
+
+import { useLanguage } from "@/components/language-provider"; // Import the hook
 import { WeatherForecast } from "@/components/dashboard/weather-forecast"; 
 import { CropRecommendation } from "@/components/dashboard/crop-prediction"; 
 import { FertilizerAdvisory } from "@/components/dashboard/fertilizer-advisory"; 
 import { IrrigationAdvisory } from "@/components/dashboard/irrigation-advisory"; 
 import { AlertSystem } from "@/components/dashboard/alert-system"; 
-import { AgriBot } from "@/components/dashboard/agri-bot"; // NEW COMPONENT
+import { AgriBot } from "@/components/dashboard/agri-bot"; 
+import { Footer } from "@/components/dashboard/Footer"; 
 
 export default function Home() {
+  const { t } = useLanguage(); // Get the translation function
+
   return (
-    <main className="container mx-auto px-4 py-6 space-y-8 max-w-7xl">
+    <div className="min-h-screen flex flex-col">
       
-      {/* 1. HERO: WEATHER (Full Width) */}
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Farm Overview</h2>
-            <span className="text-xs font-medium bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full">
-                Live Updates
-            </span>
-=======
-import { DashboardHeader } from "@/components/dashboard/header";
-import { WeatherForecast } from "@/components/dashboard/weather-forecast";
-import { WeatherAdvisory } from "@/components/dashboard/weather-advisory";
-import { CropPrediction } from "@/components/dashboard/crop-prediction";
-import { FertilizerAdvisory } from "@/components/dashboard/fertilizer-advisory";
-import { IrrigationAdvisory } from "@/components/dashboard/irrigation-advisory";
-import ChatAgent from "@/components/dashboard/chat-agent";
-import { AlertSystem } from "@/components/dashboard/alert-system";
-import { ExpertTalk } from "@/components/dashboard/expert-talk";
-import { Footer } from "@/components/dashboard/footer";
-
-export default function Home() {
-  return ( 
-    <>
-      <DashboardHeader />
-      <main className="p-4 sm:p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-3">
-            <WeatherForecast />
-          </div>
-          <div className="lg:col-span-3">
-            <WeatherAdvisory />
-          </div>
-          <div className="lg:col-span-1">
-            <CropPrediction />
-          </div>
-          <div className="lg:col-span-1">
-            <FertilizerAdvisory />
-          </div>
-          <div className="lg:col-span-1">
-            <IrrigationAdvisory />
-          </div>
-          <div className="lg:col-span-3">
-            <ChatAgent/>
-          </div>
-          <div className="lg:col-span-3">
-            <AlertSystem />
-          </div>
-           <div className="lg:col-span-3">
-             <ExpertTalk />
-          </div>
-          <div className="lg:col-span-3">
-             <Footer />
-          </div>
-
->>>>>>> 9947ffd8022daa817aa6bd3cf854fbdfcf2a7abb
-        </div>
-        <WeatherForecast />
-      </section>
-
-      {/* 2. MAIN WORKSPACE (Tools + Chat) */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <main className="container mx-auto px-4 py-6 space-y-8 max-w-7xl flex-grow">
         
-        {/* LEFT COLUMN: THE TOOLBOX (Span 2) */}
-        <div className="lg:col-span-2 space-y-8">
-            <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-xl font-bold text-slate-700">Planning Tools</h3>
-                <div className="h-px bg-slate-200 flex-1"></div>
-            </div>
-            
-            {/* We stack these vertically so they have room to breathe */}
-            <div className="grid gap-8">
-                <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-100">
-                    <CropRecommendation />
-                </div>
-                
-                <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-100">
-                    <FertilizerAdvisory />
-                </div>
+        {/* HERO */}
+        <section id="weather" className="scroll-mt-20">
+          <div className="mb-4 flex items-center justify-between">
+              {/* TRANSLATED TITLE */}
+              <h2 className="text-2xl font-bold text-foreground tracking-tight">{t("hero_title")}</h2>
+              
+              <a href="#alerts" className="text-xs font-medium bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full hover:bg-emerald-200 transition cursor-pointer flex items-center gap-1">
+                 <span className="relative flex h-2 w-2">
+                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                 </span>
+                 {t("live_updates")}
+              </a>
+          </div>
+          <WeatherForecast />
+        </section>
 
-                <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-100">
-                    <IrrigationAdvisory />
-                </div>
-            </div>
-        </div>
+        {/* WORKSPACE */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* LEFT COLUMN */}
+          <div id="planning" className="lg:col-span-2 space-y-8 scroll-mt-20">
+              <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-xl font-bold text-foreground">{t("section_planning")}</h3>
+                  <div className="h-px bg-border flex-1"></div>
+              </div>
+              
+              <div className="grid gap-8">
+                  <div className="p-1">
+                      {/* You can pass props to these components later to translate their titles too! */}
+                      <p className="mb-2 font-semibold text-muted-foreground">{t("card_crop")}</p>
+                      <CropRecommendation />
+                  </div>
+                  
+                  <div className="p-1">
+                      <p className="mb-2 font-semibold text-muted-foreground">{t("card_fert")}</p>
+                      <FertilizerAdvisory />
+                  </div>
 
-        {/* RIGHT COLUMN: AGRIBOT (Span 1) */}
-        <div className="lg:col-span-1">
-             <div className="sticky top-24 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-xl font-bold text-slate-700">Expert Assistant</h3>
-                    <div className="h-px bg-slate-200 flex-1"></div>
-                </div>
-                <AgriBot />
-                
-                {/* Alert System fits nicely under the chat on desktop */}
-                <div className="pt-4">
-                    <AlertSystem />
-                </div>
-             </div>
-        </div>
+                  <div className="p-1">
+                      <p className="mb-2 font-semibold text-muted-foreground">{t("card_irri")}</p>
+                      <IrrigationAdvisory />
+                  </div>
+              </div>
+          </div>
 
-      </section>
+          {/* RIGHT COLUMN */}
+          <div id="assistant" className="lg:col-span-1 scroll-mt-20">
+               <div className="sticky top-24 space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-xl font-bold text-foreground">{t("section_expert")}</h3>
+                      <div className="h-px bg-border flex-1"></div>
+                  </div>
+                  <AgriBot />
+                  
+                  <div id="alerts" className="pt-4 scroll-mt-24">
+                      <AlertSystem />
+                  </div>
+               </div>
+          </div>
 
-    </main>
+        </section>
+
+      </main>
+      <Footer />
+    </div>
   );
 }
