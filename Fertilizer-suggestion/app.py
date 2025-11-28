@@ -76,37 +76,42 @@ def get_form_options():
 
 @app.route('/get_environmental_data', methods=['POST'])
 def get_environmental_data():
-    # THIS IS THE PART YOU WERE MISSING OR WAS OLD
-    data = request.get_json()
-    district = data.get('district') # Expecting 'district', NOT lat/lon
+    """
+    API endpoint to fetch environmental data from SoilGrids and Open-Meteo.
+    """
+    try:
+        data = request.get_json()
+        lat, lon = data['lat'], data['lon']
 
-    # Default logic
-    profile = DISTRICT_PROFILES.get(district, { 
-        "soil": "Black", "avg_temp": 25.0, "avg_rain": 1000, "lat": 0, "lon": 0 
-    })
-    
-    soil_color = profile['soil']
-    
-    if profile['lat'] != 0:
-        temp, rain = fetch_weather_safe(profile['lat'], profile['lon'], profile['avg_temp'], profile['avg_rain'])
-    else:
-        temp, rain = profile['avg_temp'], profile['avg_rain']
+        soil_url = f"https://rest.isric.org/soilgrids/v2.0/properties/query?lon={lon}&lat={lat}&property=wrb_class_name&depth=0-5cm&value=strings"
+        soil_response = requests.get(soil_url, timeout=15).json()
+        soil_class_name = soil_response['properties']['layers'][0]['depths'][0]['values']['strings'][0]
 
-    # Add realism
-    temp = round(temp + random.uniform(-0.5, 0.5), 1)
-    rain = round(rain + random.uniform(-10, 10), 1)
+        soil_type_mapped = "Clayey"
+        if 'Vertisols' in soil_class_name: soil_type_mapped = "Black"
+        elif 'Nitisols' in soil_class_name or 'Ferralsols' in soil_class_name: soil_type_mapped = "Red"
+        
+        defaults = SOIL_DEFAULTS.get(soil_type_mapped, SOIL_DEFAULTS["Default"])
+        defaults['soil_color'] = soil_type_mapped
 
-    nutrients = SOIL_NUTRIENTS.get(soil_color, SOIL_NUTRIENTS["Default"])
+        current_weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m"
+        weather_response = requests.get(current_weather_url, timeout=15).json()
+        defaults['temperature'] = weather_response['current']['temperature_2m']
 
-    return jsonify({
-        "soil_color": soil_color,
-        "temperature": temp,
-        "rainfall": rain,
-        "N": nutrients['N'],
-        "P": nutrients['P'],
-        "K": nutrients['K'],
-        "pH": nutrients['pH']
-    })
+        today = datetime.utcnow()
+        last_year = today - timedelta(days=365)
+        historical_weather_url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={last_year.strftime('%Y-%m-%d')}&end_date={today.strftime('%Y-%m-%d')}&daily=rain_sum"
+        historical_response = requests.get(historical_weather_url, timeout=15).json()
+        precipitation_data = historical_response['daily']['rain_sum']
+        defaults['rainfall'] = sum(p for p in precipitation_data if p is not None)
+
+        return jsonify(defaults)
+
+    except Exception as e:
+        print(f"--- API ERROR ---: {e}")
+        error_defaults = SOIL_DEFAULTS["Default"]
+        error_defaults.update({'soil_color': "Black", 'temperature': 25.0, 'rainfall': 1000})
+        return jsonify(error_defaults)
 
 @app.route('/predict', methods=['POST'])
 def predict():
