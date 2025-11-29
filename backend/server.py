@@ -142,6 +142,78 @@ def irrigation_plan():
     # ... (Your existing logic is fine, keeping it short for copy-paste)
     # If you need the full irrigation code back here, let me know!
     return jsonify({"status": "ok"})
+# ... (Previous code)
+
+# --- 5. ROUTE: AI RISK GUARDIAN (The Innovation) ---
+# --- 5. ROUTE: AI RISK GUARDIAN (AUTO & MARATHI) ---
+@app.route('/alerts/check-risk', methods=['POST', 'OPTIONS'])
+def check_risk():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "ok"}), 200
+
+    try:
+        # 1. Fetch Real Weather (Sangli)
+        lat, lon = 16.8, 74.6
+        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=precipitation_sum,wind_speed_10m_max,temperature_2m_max&timezone=auto"
+        w = requests.get(weather_url).json()
+        
+        rain = w['daily']['precipitation_sum'][0]
+        wind = w['daily']['wind_speed_10m_max'][0]
+        temp = w['daily']['temperature_2m_max'][0]
+
+        print(f"🔎 Checking Risk: Rain {rain}mm, Wind {wind}km/h, Temp {temp}C")
+
+        # 2. ASK GEMINI (Always Marathi)
+        prompt = f"""
+        Analyze this weather for a farmer in Maharashtra.
+        Weather: Rain {rain}mm, Wind {wind}km/h, Temp {temp}°C.
+        
+        Task:
+        1. Determine Risk Level: 'SAFE', 'MODERATE', or 'CRITICAL'.
+        2. Write a short SMS message in **MARATHI** (Max 15 words).
+           - If SAFE: Write a reassuring message (e.g., "हवामान सुरक्षित आहे. शेतीची कामे चालू ठेवा.").
+           - If RISK: Write a warning message.
+
+        Output JSON ONLY:
+        {{
+            "level": "SAFE",
+            "sms_text": "मराठी संदेश"
+        }}
+        """
+        
+        response = model.generate_content(prompt)
+        cleaned_text = response.text.replace('```json', '').replace('```', '').strip()
+        analysis = json.loads(cleaned_text)
+
+        # 3. AUTO-SEND SMS IF RISK IS FOUND
+        sent_count = 0
+        if analysis['level'] in ['MODERATE', 'CRITICAL']:
+            conn = get_db_connection()
+            if conn:
+                cur = conn.cursor()
+                cur.execute("SELECT phone_number FROM farmers")
+                numbers = cur.fetchall()
+                
+                for num in numbers:
+                    phone = num[0]
+                    print(f"🚨 URGENT SMS to {phone}: {analysis['sms_text']}")
+                    sent_count += 1
+                
+                cur.close()
+                conn.close()
+
+        return jsonify({
+            "status": "success", 
+            "risk_level": analysis['level'], 
+            "message_sent": analysis['sms_text'], # Now always Marathi
+            "farmers_alerted": sent_count
+        })
+
+    except Exception as e:
+        print(f"❌ Alert Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ... (app.run is here)
 
 # --- 6. START SERVER ---
 if __name__ == '__main__':
